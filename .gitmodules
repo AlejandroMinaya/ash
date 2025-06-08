@@ -1,0 +1,3 @@
+[submodule "SketchyBarHelper"]
+	path = deps/SketchyBarHelper
+	url = ssh:git@github.com:FelixKratz/SketchyBarHelper
