@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main() {
+#include "../deps/SketchyBarHelper/sketchybar.h"
+
+void handler(env env) {
     printf("Hello World!\n");
-    return 0;
+}
+int main() {
+    event_server_begin(handler, "ash");
 }
