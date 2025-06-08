@@ -1,4 +1,4 @@
-.PHONY: run
+.PHONY: run build-and-run
 
 build/ash: src/main.c deps/SketchyBarHelper/sketchybar.h
 	@echo "Building target"
@@ -6,7 +6,7 @@ build/ash: src/main.c deps/SketchyBarHelper/sketchybar.h
 	chmod u+x $<
 
 
-run:
+run: build/ash
 	pkill sketchybar
 	sketchybar &
 	./build/ash
