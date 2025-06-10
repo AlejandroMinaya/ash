@@ -6,12 +6,17 @@
 #define DEFAULT_LABEL_COLOR "0xFFFFFFFF"
 #define SELECTED_LABEL_COLOR "0xFF00A3CB"
 
+short workspaces_in_use = 0;
+
 void handler(env env) {
     char* previous_workspace = env_get_value_for_key(env, "PREVIOUS_WORKSPACE");
     char* focused_workspace = env_get_value_for_key(env, "FOCUSED_WORKSPACE");
 
     if (previous_workspace == NULL || previous_workspace[0] == '\0') return;
     if (focused_workspace == NULL || focused_workspace[0] == '\0') return;
+
+    short focused_workspace_update = 1 << atoi(focused_workspace);
+    short previous_workspace_update = 1 << atoi(previous_workspace);
 
     char command[256];
 
@@ -21,7 +26,27 @@ void handler(env env) {
     snprintf(command, 256, "--set space.%s label.color=" DEFAULT_LABEL_COLOR " drawing=on", previous_workspace);
     sketchybar(command);
 
+    workspaces_in_use &= ~previous_workspace_update;
+    workspaces_in_use |= focused_workspace_update;
+
+    short mask = 1;
+    for (short i = 1; i <= 16; ++i) {
+        short mask = ~(1 << i);
+        bool is_active = (workspaces_in_use & mask) >> i;
+
+        if (is_active) {
+            printf("ACTIVE: %d\n", i);
+        }
+        printf("Mask: %d, Workspace: %d\n", mask, i);
+    }
+
 }
-int main() {
+
+int main(int argc, char** argv) {
+    if (argc == 1) {
+        return -1;
+    }
+
     event_server_begin(handler, "ash");
+    return 0;
 }

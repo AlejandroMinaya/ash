@@ -10,5 +10,5 @@ build/ash: src/main.c deps/SketchyBarHelper/sketchybar.h
 run: build/ash
 	pkill sketchybar
 	sketchybar &
-	./build/ash
+	./build/ash 10
 
