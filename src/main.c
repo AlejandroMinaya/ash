@@ -15,8 +15,8 @@ void handler(env env) {
     if (previous_workspace == NULL || previous_workspace[0] == '\0') return;
     if (focused_workspace == NULL || focused_workspace[0] == '\0') return;
 
-    short focused_workspace_update = 1 << atoi(focused_workspace);
-    short previous_workspace_update = 1 << atoi(previous_workspace);
+    short focused_workspace_update = 0b1 << atoi(focused_workspace);
+    short previous_workspace_update = 0b1 << atoi(previous_workspace);
 
     char command[256];
 
@@ -29,15 +29,14 @@ void handler(env env) {
     workspaces_in_use &= ~previous_workspace_update;
     workspaces_in_use |= focused_workspace_update;
 
-    short mask = 1;
-    for (short i = 1; i <= 16; ++i) {
-        short mask = ~(1 << i);
-        bool is_active = (workspaces_in_use & mask) >> i;
-
-        if (is_active) {
-            printf("ACTIVE: %d\n", i);
+    for(short i = 0; i < 0x1; i++) {
+        if ((workspaces_in_use >> i) & 0b1) {
+            snprintf(command, 256, "--set space.%s drawing=on", previous_workspace);
         }
-        printf("Mask: %d, Workspace: %d\n", mask, i);
+        else {
+            snprintf(command, 256, "--set space.%s drawing=off", previous_workspace);
+        }
+        sketchybar(command);
     }
 
 }
