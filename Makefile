@@ -8,7 +8,7 @@ build/ash: src/main.c deps/SketchyBarHelper/sketchybar.h
 
 
 run: build/ash
-	pkill sketchybar
-	sketchybar &
-	./build/ash 10
+	pkill sketchybar&
+	sketchybar&
+	./build/ash
 
