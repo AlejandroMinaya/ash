@@ -21,9 +21,6 @@ void paint_current_workspace(env env) {
     if (previous_workspace == NULL || previous_workspace[0] == '\0') return;
     if (focused_workspace == NULL || focused_workspace[0] == '\0') return;
 
-    short focused_workspace_update = 0b1 << atoi(focused_workspace);
-    short previous_workspace_update = 0b1 << atoi(previous_workspace);
-
     char command[SKETCHYBAR_COMMAND_SIZE];
 
     snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%s label.color=" SELECTED_LABEL_COLOR " drawing=on", focused_workspace);
@@ -32,6 +29,46 @@ void paint_current_workspace(env env) {
     snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%s label.color=" DEFAULT_LABEL_COLOR, previous_workspace);
     sketchybar(command);
 }
+
+void get_aerospace_workspace_count(int workspace_id, int aerospace_fd[]) {
+    close(aerospace_fd[0]);
+
+    dup2(aerospace_fd[1], STDOUT_FILENO);
+    close(aerospace_fd[1]);
+
+    char workspace[WORKSPACE_ID_SIZE];
+    snprintf(workspace, sizeof(workspace_id), "%i", workspace_id);
+
+    // Grandchild process, i.e. aerospace_cmd_pid
+    execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
+    perror("Failed to launch aerospace command");
+}
+
+
+void toggle_workspace_indicator(int workspace_id, int aerospace_fd[], pid_t subprocess_pid) {
+    close(aerospace_fd[1]);
+
+    printf("[WORKSPACE %i]: Waiting for aerospace...\n", workspace_id);
+    wait(&subprocess_pid);
+    printf("\n[WORKSPACE %i]: Done waiting!\n", workspace_id);
+
+    char workspace_windows_str[WINDOWS_COUNT_SIZE];
+    read(aerospace_fd[0], &workspace_windows_str, WINDOWS_COUNT_SIZE);
+    close(aerospace_fd[0]);
+
+    char command[SKETCHYBAR_COMMAND_SIZE];
+    if (atoi(workspace_windows_str) > 0) {
+        snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=on", workspace_id);
+        printf("[WORKSPACE %i]: Drawing ON (%s)\n", workspace_id, command);
+    } else {
+        snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=off", workspace_id);
+        printf("[WORKSPACE %i]: Drawing OFF (%s)\n", workspace_id, command);
+    }
+    sketchybar(command);
+
+    printf("[WORKSPACE %i]: Bye-bye\n\n", workspace_id);
+}
+
 
 pid_t update_workspace(short workspace_id) {
     pid_t pid = fork();
@@ -42,62 +79,39 @@ pid_t update_workspace(short workspace_id) {
         exit(-1);
     }
 
-    // Parent process
-    if (pid > 0) {
-        return pid;
-    }
-
-    // Child process
-    int aerospace_fd[2];
-    // Error creating pipe
-    if (pipe(aerospace_fd) == -1) {
-        perror("Couldn't create aerospace pipe");
-        exit(-2);
-    }
-
-    pid_t aerospace_cmd_pid = fork();
-    // Error with fork
-    if (aerospace_cmd_pid == -1) {
-        perror("Failed to fork into aerospace workspace command");
-        exit(-1);
-    }
-
-    // Still child process, i.e. pid
-    if (aerospace_cmd_pid > 0) {
-        close(aerospace_fd[1]);
-        wait(&aerospace_cmd_pid);
-
-        char workspace_windows_str[WINDOWS_COUNT_SIZE];
-        read(aerospace_fd[0], &workspace_windows_str, WINDOWS_COUNT_SIZE);
-        close(aerospace_fd[0]);
-
-        char command[SKETCHYBAR_COMMAND_SIZE];
-        if (atoi(workspace_windows_str) > 0) {
-            snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=on", workspace_id);
-        } else {
-            snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=off", workspace_id);
+    // Child process...
+    if (pid == 0) {
+        int aerospace_fd[2];
+        // Error creating pipe
+        if (pipe(aerospace_fd) == -1) {
+            perror("Couldn't create aerospace pipe");
+            exit(-2);
         }
-        sketchybar(command);
 
+        pid_t aerospace_cmd_pid = fork();
+        // Error with fork
+        if (aerospace_cmd_pid == -1) {
+            perror("Failed to fork into aerospace workspace command");
+            exit(-1);
+        }
+
+        // aerospace subprocess
+        if (aerospace_cmd_pid == 0) {
+            get_aerospace_workspace_count(workspace_id, aerospace_fd);
+            exit(0);
+        }
+
+        toggle_workspace_indicator(workspace_id, aerospace_fd, aerospace_cmd_pid);
         exit(0);
     }
 
-    close(aerospace_fd[0]);
-    dup2(aerospace_fd[1], STDOUT_FILENO);
-    close(aerospace_fd[1]);
-
-    char workspace[WORKSPACE_ID_SIZE];
-    snprintf(workspace, sizeof(workspace_id), "%i", workspace_id);
-
-    // Grandchild process, i.e. aerospace_cmd_pid
-    execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
-    perror("Failed to launch aerospace command");
-
-    exit(0);
+    // Parent process...
+    return pid;
 }
 
 void update_all_workspaces() {
     pid_t watchers_pids[TOTAL_WORKSPACES];
+
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) {
         watchers_pids[(i-1)] = update_workspace(i);
     }
@@ -111,18 +125,7 @@ void main_handler(env env) {
     update_all_workspaces();
 }
 
-
-void setup_workspaces() {
-    char command[SKETCHYBAR_COMMAND_SIZE];
-    for(short i = 1; i < TOTAL_WORKSPACES; i++) {
-        snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--add item space.%i left --set space.%i drawing=off label=\"%i\" click_script=\"aerospace workspace %i\"", i, i, i, i);
-        sketchybar(command);
-    }
-    printf("[DONE] Setup workspaces\n");
-}
 int main(int argc, char** argv) {
-    // setup_workspaces();
-
     event_server_begin(main_handler, "ash");
 
     return 0;
