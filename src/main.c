@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "../deps/SketchyBarHelper/sketchybar.h"
 
@@ -7,6 +8,7 @@
 #define SELECTED_LABEL_COLOR "0xFF00A3CB"
 #define TOTAL_WORKSPACES 10
 #define WORKSPACE_ID_SIZE 32
+#define WINDOWS_COUNT_SIZE 2 // Assuming max 100 windows per workspace, log10(100) = 2
 
 short workspaces_in_use = 0;
 
@@ -51,9 +53,16 @@ pid_t launch_workspace_watcher(short workspace_id) {
 
     // Child process
     printf("Hi, I'm process %i\n", workspace_id);
-    pid_t aerospace_cmd_pid = fork();
 
-    // Error with aerospace command
+    int aerospace_fd[2];
+    // Error creating pipe
+    if (pipe(aerospace_fd) == -1) {
+        perror("Couldn't create aerospace pipe");
+        exit(-2);
+    }
+
+    pid_t aerospace_cmd_pid = fork();
+    // Error with fork
     if (aerospace_cmd_pid == -1) {
         perror("Failed to fork into aerospace workspace command");
         exit(-1);
@@ -61,13 +70,22 @@ pid_t launch_workspace_watcher(short workspace_id) {
 
     // Still child process, i.e. pid
     if (aerospace_cmd_pid > 0) {
+        close(aerospace_fd[1]);
+        char workspace_windows[WINDOWS_COUNT_SIZE];
+        read(aerospace_fd[0], &workspace_windows, WINDOWS_COUNT_SIZE);
+
+        printf("Workspace %i has %i windows\n", workspace_id, atoi(workspace_windows));
+
         wait(&aerospace_cmd_pid);
         exit(0);
     }
 
+    close(aerospace_fd[0]);
+    dup2(aerospace_fd[1], STDOUT_FILENO);
+    close(aerospace_fd[1]);
+
     char workspace[WORKSPACE_ID_SIZE];
     snprintf(workspace, sizeof(workspace_id), "%i", workspace_id);
-
     // Grandchild process, i.e. aerospace_cmd_pid
     execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
     perror("Failed to launch aerospace command");
