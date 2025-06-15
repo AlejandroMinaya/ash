@@ -6,9 +6,9 @@
 
 #define DEFAULT_LABEL_COLOR "0xFFFFFFFF"
 #define SELECTED_LABEL_COLOR "0xFF00A3CB"
-#define TOTAL_WORKSPACES 10
+#define TOTAL_WORKSPACES 4
 #define WORKSPACE_ID_SIZE 32
-#define WINDOWS_COUNT_SIZE 2 // Assuming max 100 windows per workspace, log10(100) = 2
+#define WINDOWS_COUNT_SIZE 8
 #define SKETCHYBAR_COMMAND_SIZE 256
 
 short workspaces_in_use = 0;
@@ -21,13 +21,16 @@ void paint_current_workspace(env env) {
     if (previous_workspace == NULL || previous_workspace[0] == '\0') return;
     if (focused_workspace == NULL || focused_workspace[0] == '\0') return;
 
+    char* response;
     char command[SKETCHYBAR_COMMAND_SIZE];
 
     snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%s label.color=" SELECTED_LABEL_COLOR " drawing=on", focused_workspace);
-    sketchybar(command);
+    response = sketchybar(command);
+    printf("[SKETCHYBAR]: %s\n", response);
 
     snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%s label.color=" DEFAULT_LABEL_COLOR, previous_workspace);
-    sketchybar(command);
+    response = sketchybar(command);
+    printf("[SKETCHYBAR]: %s\n", response);
 }
 
 void get_aerospace_workspace_count(int workspace_id, int aerospace_fd[]) {
@@ -37,10 +40,10 @@ void get_aerospace_workspace_count(int workspace_id, int aerospace_fd[]) {
     close(aerospace_fd[1]);
 
     char workspace[WORKSPACE_ID_SIZE];
-    snprintf(workspace, sizeof(workspace_id), "%i", workspace_id);
+    snprintf(workspace, WORKSPACE_ID_SIZE, "%i", workspace_id);
 
     // Grandchild process, i.e. aerospace_cmd_pid
-    execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
+     execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
     perror("Failed to launch aerospace command");
 }
 
@@ -49,11 +52,19 @@ void toggle_workspace_indicator(int workspace_id, int aerospace_fd[], pid_t subp
     close(aerospace_fd[1]);
 
     printf("[WORKSPACE %i]: Waiting for aerospace...\n", workspace_id);
-    wait(&subprocess_pid);
+    waitpid(subprocess_pid, NULL, 0);
     printf("\n[WORKSPACE %i]: Done waiting!\n", workspace_id);
 
     char workspace_windows_str[WINDOWS_COUNT_SIZE];
-    read(aerospace_fd[0], &workspace_windows_str, WINDOWS_COUNT_SIZE);
+
+    ssize_t bytes_read = read(aerospace_fd[0], &workspace_windows_str, WINDOWS_COUNT_SIZE - 1);
+    if (bytes_read > 0) {
+        workspace_windows_str[bytes_read] = '\0';
+    } else {
+        workspace_windows_str[0] = '0';
+        workspace_windows_str[1] = '\0';
+    }
+
     close(aerospace_fd[0]);
 
     char command[SKETCHYBAR_COMMAND_SIZE];
@@ -64,7 +75,8 @@ void toggle_workspace_indicator(int workspace_id, int aerospace_fd[], pid_t subp
         snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=off", workspace_id);
         printf("[WORKSPACE %i]: Drawing OFF (%s)\n", workspace_id, command);
     }
-    sketchybar(command);
+    char* response = sketchybar(command);
+    printf("[SKETCHYBAR]: %s\n", response);
 
     printf("[WORKSPACE %i]: Bye-bye\n\n", workspace_id);
 }
