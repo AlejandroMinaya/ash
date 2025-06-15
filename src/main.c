@@ -131,10 +131,51 @@ void update_all_workspaces() {
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) wait(NULL);
 }
 
+void single_thread_update_all_workspaces() {
+    pid_t pid = fork();
+
+    // Error with fork
+    if (pid == -1) {
+        perror("Failed to create watcher");
+        exit(-1);
+    }
+    // Child process...
+    if (pid == 0) {
+        int aerospace_fd[2];
+
+        for (int workspace_id = 1; workspace_id <= TOTAL_WORKSPACES; workspace_id++) {
+            // Error creating pipe
+            if (pipe(aerospace_fd) == -1) {
+                perror("Couldn't create aerospace pipe");
+                exit(-2);
+            }
+
+            pid_t aerospace_cmd_pid = fork();
+            // Error with fork
+            if (aerospace_cmd_pid == -1) {
+                perror("Failed to fork into aerospace workspace command");
+                exit(-1);
+            }
+
+            // aerospace subprocess
+            if (aerospace_cmd_pid == 0) {
+                get_aerospace_workspace_count(workspace_id, aerospace_fd);
+                exit(0);
+            }
+
+            toggle_workspace_indicator(workspace_id, aerospace_fd, aerospace_cmd_pid);
+        }
+        exit(0);
+    }
+
+    waitpid(pid, NULL, 0);
+}
+
 
 void main_handler(env env) {
     paint_current_workspace(env);
-    update_all_workspaces();
+    // update_all_workspaces();
+    single_thread_update_all_workspaces();
 }
 
 int main(int argc, char** argv) {
