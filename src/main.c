@@ -91,34 +91,33 @@ pid_t update_workspace(short workspace_id) {
         exit(-1);
     }
 
+    // Parent process...
+    if (pid > 0) return pid;
+
     // Child process...
-    if (pid == 0) {
-        int aerospace_fd[2];
-        // Error creating pipe
-        if (pipe(aerospace_fd) == -1) {
-            perror("Couldn't create aerospace pipe");
-            exit(-2);
-        }
+    int aerospace_fd[2];
+    // Error creating pipe
+    if (pipe(aerospace_fd) == -1) {
+        perror("Couldn't create aerospace pipe");
+        exit(-2);
+    }
 
-        pid_t aerospace_cmd_pid = fork();
-        // Error with fork
-        if (aerospace_cmd_pid == -1) {
-            perror("Failed to fork into aerospace workspace command");
-            exit(-1);
-        }
+    pid_t aerospace_cmd_pid = fork();
+    // Error with fork
+    if (aerospace_cmd_pid == -1) {
+        perror("Failed to fork into aerospace workspace command");
+        exit(-1);
+    }
 
-        // aerospace subprocess
-        if (aerospace_cmd_pid == 0) {
-            get_aerospace_workspace_count(workspace_id, aerospace_fd);
-            exit(0);
-        }
-
-        toggle_workspace_indicator(workspace_id, aerospace_fd, aerospace_cmd_pid);
+    // aerospace subprocess
+    if (aerospace_cmd_pid == 0) {
+        get_aerospace_workspace_count(workspace_id, aerospace_fd);
         exit(0);
     }
 
-    // Parent process...
-    return pid;
+    waitpid(aerospace_cmd_pid, NULL, 0);
+    toggle_workspace_indicator(workspace_id, aerospace_fd, aerospace_cmd_pid);
+    exit(0);
 }
 
 void update_all_workspaces() {
