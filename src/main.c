@@ -7,13 +7,10 @@
 
 #define DEFAULT_LABEL_COLOR "0xFFFFFFFF"
 #define SELECTED_LABEL_COLOR "0xFF00A3CB"
-#define TOTAL_WORKSPACES 4
+#define TOTAL_WORKSPACES 10
 #define WORKSPACE_ID_SIZE 32
 #define WINDOWS_COUNT_SIZE 8
 #define SKETCHYBAR_COMMAND_SIZE 256
-
-short workspaces_in_use = 0;
-
 
 void paint_current_workspace(env env) {
     char* previous_workspace = env_get_value_for_key(env, "PREVIOUS_WORKSPACE");
@@ -47,22 +44,28 @@ void get_aerospace_workspace_count(int workspace_id, int aerospace_fd[]) {
 }
 
 
-void toggle_workspace_indicator(int workspace_id, int aerospace_fd[]) {
-    close(aerospace_fd[1]);
+int read_aerospace_window_count(int read_fd) {
     char workspace_windows_str[WINDOWS_COUNT_SIZE];
 
-    ssize_t bytes_read = read(aerospace_fd[0], &workspace_windows_str, WINDOWS_COUNT_SIZE - 1);
+    ssize_t bytes_read = read(read_fd, &workspace_windows_str, WINDOWS_COUNT_SIZE - 1);
     if (bytes_read > 0) {
         workspace_windows_str[bytes_read] = '\0';
     } else {
         workspace_windows_str[0] = '0';
         workspace_windows_str[1] = '\0';
     }
+    return atoi(workspace_windows_str);
+}
 
+
+void toggle_workspace_indicator(int workspace_id, int aerospace_fd[]) {
+    close(aerospace_fd[1]);
+
+    int windows_count = read_aerospace_window_count(aerospace_fd[0]);
     close(aerospace_fd[0]);
 
     char command[SKETCHYBAR_COMMAND_SIZE];
-    if (atoi(workspace_windows_str) > 0)  snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=on", workspace_id);
+    if (windows_count > 0)  snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=on", workspace_id);
     else snprintf(command, SKETCHYBAR_COMMAND_SIZE, "--set space.%i drawing=off", workspace_id);
     sketchybar(command);
 }
@@ -108,13 +111,13 @@ void update_all_workspaces() {
         if (pthread_create(watchers_pids + i-1, NULL, update_workspace, args)) free(args);
     }
 
-    for (short i = 1; i <= TOTAL_WORKSPACES; i++) wait(NULL);
+    for (short i = 1; i <= TOTAL_WORKSPACES; i++) pthread_join(watchers_pids[i-1], NULL);
 }
 
 
 void main_handler(env env) {
-    paint_current_workspace(env);
     update_all_workspaces();
+    paint_current_workspace(env);
 }
 
 int main(int argc, char** argv) {
