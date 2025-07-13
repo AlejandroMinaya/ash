@@ -1,3 +1,4 @@
+<!-- kobayashi was here -->
 # ASH
 _(AeroSpace SketchyBar Helper)_
 
@@ -8,6 +9,8 @@ https://github.com/user-attachments/assets/ce281651-5fd8-4eca-81ca-45fa841ef6a4
 
 
 ## Next Steps
+### Features
+- [ ] Update workspace indicators on window move to another workspace
 ### Bugs
 - [ ] Race condition between `paint_current_workspace` and `update_all_workspaces`
 ### Quality of Life Improvements
