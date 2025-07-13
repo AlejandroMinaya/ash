@@ -1,4 +1,4 @@
-.PHONY: run build-and-run
+.PHONY: run
 
 build/ash: src/main.c deps/SketchyBarHelper/sketchybar.h
 	@echo "Building target"
