@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <unistd.h>
 
 #include "../deps/SketchyBarHelper/sketchybar.h"
@@ -82,7 +83,7 @@ void toggle_workspace_indicator(int workspace_id, int aerospace_fd[], pid_t subp
 }
 
 
-pid_t update_workspace(short workspace_id) {
+pid_t update_workspace__old(short workspace_id) {
     pid_t pid = fork();
 
     // Error with fork
@@ -120,11 +121,53 @@ pid_t update_workspace(short workspace_id) {
     exit(0);
 }
 
-void update_all_workspaces() {
+typedef struct  {
+    short workspace_id;
+} update_workspace_args;
+
+void *update_workspace(void *_args) {
+    update_workspace_args *args = _args;
+    // Child process...
+    int aerospace_fd[2];
+    // Error creating pipe
+    if (pipe(aerospace_fd) == -1) {
+        perror("Couldn't create aerospace pipe");
+        exit(-2);
+    }
+
+    pid_t aerospace_cmd_pid = fork();
+    // Error with fork
+    if (aerospace_cmd_pid == -1) {
+        perror("Failed to fork into aerospace workspace command");
+        exit(-1);
+    }
+
+    // aerospace subprocess
+    if (aerospace_cmd_pid == 0) {
+        get_aerospace_workspace_count(args->workspace_id, aerospace_fd);
+        exit(0);
+    }
+
+    waitpid(aerospace_cmd_pid, NULL, 0);
+    toggle_workspace_indicator(args->workspace_id, aerospace_fd, aerospace_cmd_pid);
+    return 0;
+}
+void update_all_workspaces__old() {
     pid_t watchers_pids[TOTAL_WORKSPACES];
 
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) {
-        watchers_pids[(i-1)] = update_workspace(i);
+        watchers_pids[(i-1)] = update_workspace__old(i);
+    }
+
+    for (short i = 1; i <= TOTAL_WORKSPACES; i++) wait(NULL);
+}
+void update_all_workspaces() {
+    pthread_t watchers_pids[TOTAL_WORKSPACES];
+
+    for (short i = 1; i <= TOTAL_WORKSPACES; i++) {
+        update_workspace_args *args = malloc(sizeof *args);
+        args->workspace_id = i;
+        if (pthread_create(watchers_pids + i-1, NULL, update_workspace, args)) free(args);
     }
 
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) wait(NULL);
