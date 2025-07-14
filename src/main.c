@@ -108,7 +108,7 @@ void update_all_workspaces() {
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) {
         struct update_workspace_args *args = malloc(sizeof *args);
         args->workspace_id = i;
-        if (pthread_create(watchers_pids + i-1, NULL, update_workspace, args)) free(args);
+        if (pthread_create(watchers_pids + i-1, NULL, update_workspace, args) == 0) free(args);
     }
 
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) pthread_join(watchers_pids[i-1], NULL);
