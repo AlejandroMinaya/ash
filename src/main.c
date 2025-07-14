@@ -37,9 +37,8 @@ void get_aerospace_workspace_count(int workspace_id, int aerospace_fd[]) {
 
     char workspace[WORKSPACE_ID_SIZE];
     snprintf(workspace, WORKSPACE_ID_SIZE, "%i", workspace_id);
-
-    // Grandchild process, i.e. aerospace_cmd_pid
     execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
+
     perror("Failed to launch aerospace command");
 }
 
@@ -70,50 +69,36 @@ void toggle_workspace_indicator(int workspace_id, int aerospace_fd[]) {
     sketchybar(command);
 }
 
-struct update_workspace_args {
-    short workspace_id;
-};
-
-void *update_workspace(void *_args) {
-    struct update_workspace_args *args = _args;
+int update_workspace(short workspace_id) {
     // Child process...
     int aerospace_fd[2];
     // Error creating pipe
     if (pipe(aerospace_fd) == -1) {
         perror("Couldn't create aerospace pipe");
-        exit(-2);
+        return -2;
     }
 
     pid_t aerospace_cmd_pid = fork();
     // Error with fork
     if (aerospace_cmd_pid == -1) {
         perror("Failed to fork into aerospace workspace command");
-        exit(-1);
+        return -1;
     }
 
     // aerospace subprocess
     if (aerospace_cmd_pid == 0) {
-        get_aerospace_workspace_count(args->workspace_id, aerospace_fd);
+        get_aerospace_workspace_count(workspace_id, aerospace_fd);
         exit(0);
     }
 
     waitpid(aerospace_cmd_pid, NULL, 0);
-    toggle_workspace_indicator(args->workspace_id, aerospace_fd);
-
+    toggle_workspace_indicator(workspace_id, aerospace_fd);
     return 0;
 }
+
 void update_all_workspaces() {
-    pthread_t watchers_pids[TOTAL_WORKSPACES];
-    struct update_workspace_args args[TOTAL_WORKSPACES];
-
-    for (short i = 1; i <= TOTAL_WORKSPACES; i++) {
-        args[i-1].workspace_id = i;
-        pthread_create(watchers_pids + i-1, NULL, update_workspace, args+i-1);
-    }
-
-    for (short i = 1; i <= TOTAL_WORKSPACES; i++) pthread_join(watchers_pids[i-1], NULL);
+    for (short i = 1; i <= TOTAL_WORKSPACES; i++)  update_workspace(i);
 }
-
 
 void main_handler(env env) {
     update_all_workspaces();
