@@ -39,7 +39,7 @@ void get_aerospace_workspace_count(int workspace_id, int aerospace_fd[]) {
     snprintf(workspace, WORKSPACE_ID_SIZE, "%i", workspace_id);
 
     // Grandchild process, i.e. aerospace_cmd_pid
-     execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
+    execlp("aerospace", "aerospace", "list-windows", "--workspace", workspace, "--count", NULL);
     perror("Failed to launch aerospace command");
 }
 
@@ -104,11 +104,11 @@ void *update_workspace(void *_args) {
 }
 void update_all_workspaces() {
     pthread_t watchers_pids[TOTAL_WORKSPACES];
+    struct update_workspace_args args[TOTAL_WORKSPACES];
 
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) {
-        struct update_workspace_args *args = malloc(sizeof *args);
-        args->workspace_id = i;
-        if (pthread_create(watchers_pids + i-1, NULL, update_workspace, args)) free(args);
+        args[i-1].workspace_id = i;
+        pthread_create(watchers_pids + i-1, NULL, update_workspace, args+i-1);
     }
 
     for (short i = 1; i <= TOTAL_WORKSPACES; i++) pthread_join(watchers_pids[i-1], NULL);
@@ -122,6 +122,5 @@ void main_handler(env env) {
 
 int main(int argc, char** argv) {
     event_server_begin(main_handler, "ash");
-
     return 0;
 }
