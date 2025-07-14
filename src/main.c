@@ -82,7 +82,7 @@ int update_workspace(short workspace_id) {
     // Error with fork
     if (aerospace_cmd_pid == -1) {
         perror("Failed to fork into aerospace workspace command");
-        return -1;
+        exit(-1);
     }
 
     // aerospace subprocess
